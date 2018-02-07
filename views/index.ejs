@@ -6,18 +6,21 @@
     </head>
     <body>
 
-        <div>
-            Video: <select id="camera" value="fakeidoweiweoeijodfasjfj"><option value="0">please select camera</option></select>
+        <div id="camera-select-wrapper">
+            Video: <select id="camera-select">
+                <option value="no_camera_selected">please select camera</option>
+            </select>
         </div>
         <video autoplay></video>
 
         <script>
             var videoArea = document.querySelector("video");
-            var videoSelect = document.getElementById('camera');
+            var videoSelect = document.getElementById('camera-select');
             
             (function() {
                 if (!navigator.mediaDevices || !navigator.mediaDevices.enumerateDevices) {
                     console.log("enumerateDevices() not supported.");
+                    document.getElementById('camera-select-wrapper').style.visibility = 'hidden';
                     return;
                 }
 
@@ -49,6 +52,11 @@
                 
                 var videoSource = videoSelect.value;
 
+                if (videoSource === 'no_camera_selected') {
+                    console.log('no_camera_selected');
+                    return;
+                }
+                
                 var constraints = {audio: true, video: {
                     mandatory: {
                         minWidth: 640,
