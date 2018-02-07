@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html lang="en">
+    <head>
+        <title>Intro to WebRTC</title>
+        <link rel="stylesheet" href="styles.css">
+    </head>
+    <body>
+
+        <div>
+            Video: <select id="camera" value="fakeidoweiweoeijodfasjfj"><option value="0">please select camera</option></select>
+        </div>
+        <video autoplay></video>
+
+        <script>
+            var videoArea = document.querySelector("video");
+            var videoSelect = document.getElementById('camera');
+            
+            (function() {
+                if (!navigator.mediaDevices || !navigator.mediaDevices.enumerateDevices) {
+                    console.log("enumerateDevices() not supported.");
+                    return;
+                }
+
+                // List cameras and microphones.
+                navigator.mediaDevices.enumerateDevices()
+                    .then(function(devices) {
+                        devices.forEach(function(device) {
+                            console.log(device.kind + ": " + device.label + " id = " + device.deviceId);
+                            var option = document.createElement('option');
+                            option.value = device.deviceId;
+                            if (device.kind === 'videoinput') {
+                                option.text = device.label || 'camera ' + (videoSelect.length + 1);
+                                videoSelect.appendChild(option);
+                            }
+                        });
+                    })
+                    .catch(function(err) {
+                        console.log(err.name + ": " + err.message);
+                    });
+            })();
+
+            videoSelect.onchange = startStream;
+
+            startStream();
+
+            function startStream() {
+                navigator.getUserMedia = navigator.getUserMedia || navigator.webkitGetUserMedia || navigator.mozGetUserMedia;
+                // what about navigator.mediaDevices.getUserMedia and MediaDevices.getUserMedia ?
+                
+                var videoSource = videoSelect.value;
+
+                var constraints = {audio: true, video: {
+                    mandatory: {
+                        minWidth: 640,
+                        minHeight: 360,
+
+                        maxWidth: 640,
+                        maxHeight: 480
+                    },
+                    optional: [{
+                        sourceId: videoSource
+                    }]
+                }};
+
+                navigator.getUserMedia(constraints, onSuccess, onError);
+            }
+            
+            function onSuccess(stream) {
+                console.log("Success! We have a stream");
+                videoArea.src = window.URL.createObjectURL(stream);
+                videoArea.className = "grayscale_filter";
+                videoArea.play();
+            }
+
+            function onError(error) {
+                console.log("Error: ", error);
+            }
+        </script>
+    </body>
+</html>
