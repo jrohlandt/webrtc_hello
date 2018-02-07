@@ -11,11 +11,65 @@
                 <option value="no_camera_selected">please select camera</option>
             </select>
         </div>
-        <video autoplay></video>
+
+        <p><button id="take-profile-pic-button" type="button" autofocus="true">Take a profile picture</button></p>
+        <canvas id="profile-pic-canvas" style="display: none;"></canvas>
+        <div>
+            <img id="profile-pic-output" src="" alt="">
+        </div>
+        <video id="video-tag" autoplay></video>
 
         <script>
             var videoArea = document.querySelector("video");
             var videoSelect = document.getElementById('camera-select');
+            var profilePicCanvas = document.getElementById('profile-pic-canvas');
+            var profilePicOutput = document.getElementById('profile-pic-output');
+            var takeProfilePicButton = document.getElementById('take-profile-pic-button');
+            var videoTag = document.getElementById('video-tag');
+
+            var profilePicOptions = {
+                width: 240,
+                height: 0, // Calculated later based on image ratio
+            }
+
+            var streaming = false; // Used to determine when the video has loaded
+
+            takeProfilePicButton.addEventListener('click', function(e) {
+                takeProfilePic(profilePicOptions);
+                e.preventDefault;
+            }, false);
+
+            function takeProfilePic(options) {
+                var context = profilePicCanvas.getContext('2d');
+                if (options.width && options.height) {
+                    profilePicCanvas.width = options.width;
+                    profilePicCanvas.height = options.height;
+                    context.drawImage(videoTag, 0, 0 ,options.width, options.height);
+
+                    var data = profilePicCanvas.toDataURL('image/png');
+                    profilePicOutput.setAttribute('src', data);
+                }
+            }
+
+            videoTag.addEventListener('canplay', function (e) {
+                if (streaming === true) {
+                    return;
+                } 
+
+                profilePicOptions.height = videoTag.videoHeight / (videoTag.videoWidth / profilePicOptions.width);
+
+                // ff has a bug where the height can't be read from video.
+                // if this happens we will assume a ratio
+                if (isNaN(profilePicOptions.height)) {
+                    profilePicOptions.height = profilePicOptions.width / ( 4/3 );
+                }
+
+                videoTag.setAttribute('width', profilePicOptions.width);
+                videoTag.setAttribute('height', profilePicOptions.height);
+                profilePicCanvas.setAttribute('width', profilePicOptions.width);
+                profilePicCanvas.setAttribute('height', profilePicOptions.height);
+
+            }, false);
             
             (function() {
                 if (!navigator.mediaDevices || !navigator.mediaDevices.enumerateDevices) {
@@ -59,11 +113,11 @@
                 
                 var constraints = {audio: true, video: {
                     mandatory: {
-                        minWidth: 640,
-                        minHeight: 360,
+                        minWidth: 240,
+                        minHeight: 240,
 
-                        maxWidth: 640,
-                        maxHeight: 480
+                        maxWidth: 240,
+                        maxHeight: 240
                     },
                     optional: [{
                         sourceId: videoSource
