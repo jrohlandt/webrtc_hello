@@ -3,6 +3,7 @@
     <head>
         <title>Intro to WebRTC</title>
         <link rel="stylesheet" href="styles.css">
+        <script src="/socket.io/socket.io.js"></script>
     </head>
     <body>
 
@@ -13,63 +14,20 @@
         </div>
 
         <p><button id="take-profile-pic-button" type="button" autofocus="true">Take a profile picture</button></p>
-        <canvas id="profile-pic-canvas" style="display: none;"></canvas>
-        <div>
-            <img id="profile-pic-output" src="" alt="">
-        </div>
         <video id="video-tag" autoplay></video>
+        <div>
+            <label for="my-name">Your name</label>
+            <input id="my-name" type="text" />
+            <label for="my-message">Message</label>
+            <input id="my-message" type="text" />
+            <input id="send-message" type="submit" />
+            <div id="chat-area" >Message Output:<br></div>
+        </div>
 
         <script>
             var videoArea = document.querySelector("video");
             var videoSelect = document.getElementById('camera-select');
-            var profilePicCanvas = document.getElementById('profile-pic-canvas');
-            var profilePicOutput = document.getElementById('profile-pic-output');
-            var takeProfilePicButton = document.getElementById('take-profile-pic-button');
-            var videoTag = document.getElementById('video-tag');
-
-            var profilePicOptions = {
-                width: 240,
-                height: 0, // Calculated later based on image ratio
-            }
-
-            var streaming = false; // Used to determine when the video has loaded
-
-            takeProfilePicButton.addEventListener('click', function(e) {
-                takeProfilePic(profilePicOptions);
-                e.preventDefault;
-            }, false);
-
-            function takeProfilePic(options) {
-                var context = profilePicCanvas.getContext('2d');
-                if (options.width && options.height) {
-                    profilePicCanvas.width = options.width;
-                    profilePicCanvas.height = options.height;
-                    context.drawImage(videoTag, 0, 0 ,options.width, options.height);
-
-                    var data = profilePicCanvas.toDataURL('image/png');
-                    profilePicOutput.setAttribute('src', data);
-                }
-            }
-
-            videoTag.addEventListener('canplay', function (e) {
-                if (streaming === true) {
-                    return;
-                } 
-
-                profilePicOptions.height = videoTag.videoHeight / (videoTag.videoWidth / profilePicOptions.width);
-
-                // ff has a bug where the height can't be read from video.
-                // if this happens we will assume a ratio
-                if (isNaN(profilePicOptions.height)) {
-                    profilePicOptions.height = profilePicOptions.width / ( 4/3 );
-                }
-
-                videoTag.setAttribute('width', profilePicOptions.width);
-                videoTag.setAttribute('height', profilePicOptions.height);
-                profilePicCanvas.setAttribute('width', profilePicOptions.width);
-                profilePicCanvas.setAttribute('height', profilePicOptions.height);
-
-            }, false);
+            
             
             (function() {
                 if (!navigator.mediaDevices || !navigator.mediaDevices.enumerateDevices) {
@@ -98,7 +56,7 @@
 
             videoSelect.onchange = startStream;
 
-            startStream();
+            // startStream();
 
             function startStream() {
                 navigator.getUserMedia = navigator.getUserMedia || navigator.webkitGetUserMedia || navigator.mozGetUserMedia;
@@ -111,18 +69,7 @@
                     return;
                 }
                 
-                var constraints = {audio: true, video: {
-                    mandatory: {
-                        minWidth: 240,
-                        minHeight: 240,
-
-                        maxWidth: 240,
-                        maxHeight: 240
-                    },
-                    optional: [{
-                        sourceId: videoSource
-                    }]
-                }};
+                var constraints = {audio: true, video: false};
 
                 navigator.getUserMedia(constraints, onSuccess, onError);
             }
@@ -130,12 +77,42 @@
             function onSuccess(stream) {
                 console.log("Success! We have a stream");
                 videoArea.src = window.URL.createObjectURL(stream);
-                videoArea.className = "grayscale_filter";
                 videoArea.play();
             }
 
             function onError(error) {
                 console.log("Error: ", error);
+            }
+
+            // chat room
+            var myName = document.getElementById('my-name');
+            var myMessage = document.getElementById('my-message');
+            var sendMessage = document.getElementById('send-message');
+            var chatArea = document.getElementById('chat-area');
+            var ROOM = "chat";
+
+            io = io.connect();
+            io.emit('ready', ROOM);
+
+            io.on('announce', function(data) {
+                displayMessage(data.message);
+            });
+
+            io.on('message', function(data) {
+                displayMessage(data.author + ": " + data.message);
+            });
+
+            sendMessage.addEventListener('click', function(e) {
+                e.preventDefault();
+                io.emit('send', {
+                    "author": myName.value,
+                    "message": myMessage.value,
+                    "room": ROOM
+                });
+            }, false);
+
+            function displayMessage(message) {
+                chatArea.innerHTML = chatArea.innerHTML + "<br>" + message;
             }
         </script>
     </body>
