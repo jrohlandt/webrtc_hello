@@ -1,14 +1,15 @@
 <!DOCTYPE html>
 <html lang="en">
     <head>
+        <meta name="viewport" content="width=device-width, initial-scale=1" >
         <title>Intro to WebRTC</title>
         <link rel="stylesheet" href="styles.css">
         <script src="/socket.io/socket.io.js"></script>
     </head>
     <body>
 
-        <video id="my-video-tag" autoplay></video>
-        <video id="their-video-tag" autoplay></video>
+        <video id="my-video-tag" autoplay style="width: 200px; height: 200px"></video>
+        <video id="their-video-tag" autoplay style="width: 200px; height: 200px"></video>
         
         <div>
             <label for="my-name">Your name</label>
@@ -40,6 +41,12 @@
                 }]
             };
             var rtcPeerConn;
+
+            var dataChannelOptions = {
+                ordered: false, // unreliable mode
+                maxRetransmitTime: 1000, // msec
+            };
+            var dataChannel;
 
             io = io.connect();
             io.emit('ready', {
@@ -87,7 +94,12 @@
             function startSignaling() {
                 displaySignalMessage('starting signaling...');
 
-                rtcPeerConn = new webkitRTCPeerConnection(configuration);
+                rtcPeerConn = new webkitRTCPeerConnection(configuration, null);
+
+                dataChannel = rtcPeerConn.createDataChannel('textMessages', dataChannelOptions);
+                
+                dataChannel.onopen = dataChannelStateChanged;
+                rtcPeerConn.ondatachannel = receiveDataChannel;
 
                 // send any ice candidates to the other peer
                 rtcPeerConn.onicecadidate = function(e) {
@@ -117,13 +129,33 @@
                 // get a local stream, show it in our video tag and add it to be sent 
                 navigator.getUserMedia = navigator.getUserMedia || navigator.webkitGetUserMedia || navigator.mozGetUserMedia;
                 navigator.getUserMedia({
-                    'audio': true,
-                    'video': true
+                    'audio': false,
+                    'video': { width: 240, height: 240}
                 }, function(stream) {
                     displaySignalMessage("going to display my stream...");
                     myVideoArea.src = URL.createObjectURL(stream);
                     rtcPeerConn.addStream(stream);
                 }, logError);
+            }
+
+            function dataChannelStateChanged() {
+                if (dataChannel.readyState === 'open') {
+                    displaySignalMessage("Data Channel open");
+                    dataChannel.onmessage = receiveDataChannelMessage;
+                } else {
+                    console.log('dataChannel.readyState: ', dataChannel.readyState);
+                }
+            }
+
+            function receiveDataChannel(event) {
+                displaySignalMessage("Receiving a data channel");
+                dataChannel = event.channel;
+                dataChannel.onmessage = receiveDataChannelMessage;
+            }
+
+            function receiveDataChannelMessage(event) {
+                displaySignalMessage("Incoming Message");
+                displayMessage("From DataChannel: " + event.data);
             }
 
             function sendLocalDesc(desc) {
@@ -156,6 +188,9 @@
                     "message": myMessage.value,
                     "room": CHAT_ROOM
                 });
+
+                // just for fun we also send a message over webrtc datachannel
+                dataChannel.send(myName.value + " says " + myMessage.value);
             }, false);
 
             function displayMessage(message) {
