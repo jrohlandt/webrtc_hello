@@ -12,6 +12,12 @@
         <video id="their-video-tag" autoplay style="width: 200px; height: 200px"></video>
         
         <div>
+            <input type="file" id="send-file" ><br>
+            <progress id="file-progress" value="1" max="100"></progress>
+            <a id="received-file-link"></a>
+            <hr>
+        </div>
+        <div>
             <label for="my-name">Your name</label>
             <input id="my-name" type="text" />
             <label for="my-message">Message</label>
@@ -24,6 +30,11 @@
         </div>
 
         <script>
+
+            var sendFile = document.getElementById('send-file');
+            var fileProgress = document.getElementById('file-progress');
+            var downloadLink = document.getElementById('received-file-link');
+
             var myVideoArea = document.getElementById("my-video-tag");
             var theirVideoArea = document.getElementById("their-video-tag");
             var signalingArea = document.getElementById('signaling-debug-area');
@@ -35,6 +46,8 @@
             var chatArea = document.getElementById('chat-area');
             var CHAT_ROOM = "chat_room";
             var SIGNAL_ROOM = "signal_room";
+            var FILES_ROOM = 'files_room';
+
             var configuration = {
                 'iceServers': [{
                     'url': 'stun:stun.l.google.com:19302'
@@ -47,11 +60,16 @@
                 maxRetransmitTime: 1000, // msec
             };
             var dataChannel;
+            var receivedFileName;
+            var receivedFileSize;
+            var fileBuffer = [];
+            var fileSize = 0;
 
             io = io.connect();
             io.emit('ready', {
                 "chat_room": CHAT_ROOM,
-                "signal_room": SIGNAL_ROOM
+                "signal_room": SIGNAL_ROOM,
+                "files_room": FILES_ROOM
             });
 
             io.emit('signal', {
@@ -89,6 +107,12 @@
                 }
 
 
+            });
+
+            io.on('files', function(data) {
+                receivedFileName = data.filename;
+                receivedFileSize = data.filesize;
+                displaySignalMessage("websockets says the file on it's way is " + receivedFileName + " (" + receivedFileSize + ") ");
             });
 
             function startSignaling() {
@@ -156,6 +180,21 @@
             function receiveDataChannelMessage(event) {
                 displaySignalMessage("Incoming Message");
                 displayMessage("From DataChannel: " + event.data);
+
+                // This is where we process incoming files
+                fileBuffer.push(event.data);
+                fileSize += event.data.byteLength;
+                fileProgress.value = fileSize;
+
+                // Provide link to dowloadable file when complete
+                if (fileSize === receivedFileSize) {
+                    var received = new window.Blob(fileBuffer);
+                    fileBuffer = [];
+
+                    downloadLink.href = URL.createObjectURL(received);
+                    downloadLink.download = receivedFileName;
+                    downloadLink.appendChild(document.createTextNode(receivedFileName + "(" + fileSize + ") bytes"));
+                }
             }
 
             function sendLocalDesc(desc) {
@@ -190,7 +229,36 @@
                 });
 
                 // just for fun we also send a message over webrtc datachannel
-                dataChannel.send(myName.value + " says " + myMessage.value);
+                // dataChannel.send(myName.value + " says " + myMessage.value);
+            }, false);
+
+            sendFile.addEventListener('change', function (e) {
+                var file = sendFile.files[0];
+                displaySignalMessage("Sending file " + file.name + " (" + file.size + ")");
+
+                io.emit('files', {
+                    "filename": file.name, 
+                    "filesize": file.size, 
+                    "room": FILES_ROOM
+                });
+
+                fileProgress.max = file.size;
+                var chunkSize = 16384;
+                var sliceFile = function(offset) {
+                	var reader = new window.FileReader();
+                	reader.onload = (function() {
+                		return function(e) {
+                			dataChannel.send(e.target.result);
+                			if (file.size > offset + e.target.result.byteLength) {
+                				window.setTimeout(sliceFile, 0, offset + chunkSize);
+                			}
+                			fileProgress.value = offset + e.target.result.byteLength;
+                		};
+                	})(file);
+                	var slice = file.slice(offset, offset + chunkSize);
+                	reader.readAsArrayBuffer(slice);
+                };
+                sliceFile(0);
             }, false);
 
             function displayMessage(message) {

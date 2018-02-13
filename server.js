@@ -13,6 +13,7 @@ app.get('/', function(req, res) {
 app.io.route('ready', function(req) {
     req.io.join(req.data.chat_room);
     req.io.join(req.data.signal_room);
+    req.io.join(req.data.files_room);
     app.io.room(req.data).broadcast('announce', {
         message: 'New client in the ' + req.data + ' room.'
     });
@@ -33,4 +34,10 @@ app.io.route('signal', function(req) {
     });
 });
 
+app.io.route('files', function(req) {
+    req.io.room(req.data.room).broadcast('files', {
+        filename: req.data.filename,
+        filesize: req.data.filesize
+    });
+});
 app.listen(PORT);
